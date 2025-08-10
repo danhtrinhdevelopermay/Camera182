@@ -1,0 +1,89 @@
+name: Build APK - Embedding v2 Fix
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-apk-embedding-fix:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Java JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        
+    - name: Setup Flutter 3.19.6
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.19.6'
+        channel: 'stable'
+        cache: true
+        
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      
+    - name: Verify Setup
+      run: |
+        flutter --version
+        java -version
+        echo "ANDROID_HOME: $ANDROID_HOME"
+        echo "JAVA_HOME: $JAVA_HOME"
+        
+    - name: Complete Android Embedding v2 Fix
+      run: |
+        cd ios_camera_flutter_app
+        echo "🔍 Current Android structure:"
+        find android -name "*.xml" -o -name "*.kt" | head -10
+        
+        echo "🗑️ Removing old Android project..."
+        rm -rf android
+        
+        echo "🔧 Creating fresh Android project with v2 embedding..."
+        # Create temporary project to get clean Android structure
+        cd ..
+        flutter create --platforms android --org com.iosCamera temp_project
+        
+        echo "📂 Moving clean Android structure..."
+        mv temp_project/android ios_camera_flutter_app/android
+        rm -rf temp_project
+        
+        cd ios_camera_flutter_app
+        echo "✅ New Android structure created:"
+        ls -la android/app/src/main/
+        
+        echo "📋 AndroidManifest.xml content:"
+        cat android/app/src/main/AndroidManifest.xml
+        
+    - name: Restore Dependencies and Build
+      run: |
+        cd ios_camera_flutter_app
+        echo "📦 Getting dependencies..."
+        flutter clean
+        flutter pub get
+        
+        echo "📄 Accepting Android licenses..."
+        yes | flutter doctor --android-licenses 2>/dev/null || echo "Licenses handled"
+        
+        echo "🏗️ Building APK with v2 embedding..."
+        flutter build apk --release --verbose
+        
+    - name: Verify APK Build
+      run: |
+        cd ios_camera_flutter_app
+        ls -la build/app/outputs/flutter-apk/
+        file build/app/outputs/flutter-apk/app-release.apk
+        
+    - name: Upload APK Artifact  
+      uses: actions/upload-artifact@v4
+      with:
+        name: camera-app-embedding-v2-apk
+        path: ios_camera_flutter_app/build/app/outputs/flutter-apk/app-release.apk
+        retention-days: 30
+        if-no-files-found: error

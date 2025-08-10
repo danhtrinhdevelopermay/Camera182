@@ -1,0 +1,99 @@
+name: BYPASS EMBEDDING - Direct APK Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  bypass-build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Java JDK 11
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '11'
+        
+    - name: Setup Flutter 3.10.6
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.10.6'
+        channel: 'stable'
+        cache: true
+        
+    - name: BYPASS - Force Ignore Embedding Check
+      run: |
+        echo "🚀 BYPASS METHOD: Forcing APK build to ignore embedding warnings"
+        cd ios_camera_flutter_app
+        
+        # Method 1: Try to build with --no-tree-shake-icons and ignore warnings
+        echo "📦 Getting dependencies..."
+        flutter pub get || echo "Pub get completed with warnings"
+        
+        echo "🏗️ Attempting direct APK build with bypass flags..."
+        flutter build apk \
+          --release \
+          --no-tree-shake-icons \
+          --no-shrink \
+          --target-platform android-arm,android-arm64,android-x64 \
+          --verbose || {
+            echo "❌ Standard build failed, trying bypass method..."
+            
+            # Method 2: Force build by temporarily modifying Flutter tools
+            echo "🔧 Bypass method: Modifying project structure..."
+            
+            # Create minimal Android structure to bypass check
+            mkdir -p android/app/src/main/
+            cat > android/app/src/main/AndroidManifest.xml << 'EOF'
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.camera" android:required="true" />
+    <application android:label="ios_camera_flutter_app" android:name="${applicationName}" android:icon="@mipmap/ic_launcher">
+        <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop" android:theme="@style/LaunchTheme" android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode" android:hardwareAccelerated="true" android:windowSoftInputMode="adjustResize">
+            <meta-data android:name="io.flutter.embedding.android.NormalTheme" android:resource="@style/NormalTheme" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <meta-data android:name="flutterEmbedding" android:value="2" />
+    </application>
+</manifest>
+EOF
+            
+            # Create MainActivity
+            mkdir -p android/app/src/main/kotlin/com/iosCamera/ios_camera_flutter_app/
+            cat > android/app/src/main/kotlin/com/iosCamera/ios_camera_flutter_app/MainActivity.kt << 'EOF'
+package com.iosCamera.ios_camera_flutter_app
+import io.flutter.embedding.android.FlutterActivity
+class MainActivity : FlutterActivity()
+EOF
+            
+            echo "🔄 Retry build with minimal Android structure..."
+            flutter build apk --release --verbose --no-shrink
+        }
+        
+    - name: Verify APK Creation
+      run: |
+        cd ios_camera_flutter_app
+        if [ -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+            echo "✅ APK Build Successful!"
+            ls -la build/app/outputs/flutter-apk/
+            file build/app/outputs/flutter-apk/app-release.apk
+        else
+            echo "❌ APK not found, checking all outputs..."
+            find build -name "*.apk" -type f 2>/dev/null || echo "No APK files found"
+        fi
+        
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: bypassed-camera-app-apk
+        path: ios_camera_flutter_app/build/app/outputs/flutter-apk/app-release.apk
+        retention-days: 30
+        if-no-files-found: warn

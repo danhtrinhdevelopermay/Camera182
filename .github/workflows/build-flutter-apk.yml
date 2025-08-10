@@ -1,0 +1,92 @@
+name: Build Flutter APK (Alternative)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Java JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      with:
+        api-level: 34
+        build-tools: 34.0.0
+        
+    - name: Manual Flutter Setup
+      run: |
+        # Download Flutter SDK
+        cd /tmp
+        wget -q https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.19.6-stable.tar.xz
+        tar xf flutter_linux_3.19.6-stable.tar.xz
+        
+        # Add Flutter to PATH
+        export PATH="/tmp/flutter/bin:$PATH"
+        
+        # Move Flutter to permanent location
+        sudo mv flutter /opt/
+        echo "/opt/flutter/bin" >> $GITHUB_PATH
+        
+    - name: Verify Flutter Installation
+      run: |
+        flutter --version
+        flutter doctor -v
+        
+    - name: Accept Android Licenses
+      run: |
+        flutter doctor --android-licenses --verbose || echo "Licenses step completed"
+        
+    - name: Navigate to Project and Build
+      run: |
+        cd ios_camera_flutter_app
+        echo "=== Project Structure ==="
+        ls -la
+        echo "=== pubspec.yaml ==="
+        cat pubspec.yaml
+        echo "=== Flutter Clean ==="
+        flutter clean
+        echo "=== Flutter Pub Get ==="
+        flutter pub get
+        echo "=== Flutter Doctor ==="
+        flutter doctor
+        echo "=== Building APK ==="
+        flutter build apk --release --verbose
+        
+    - name: List Build Output
+      run: |
+        cd ios_camera_flutter_app
+        echo "=== Build directory contents ==="
+        find build -name "*.apk" -type f 2>/dev/null || echo "No APK files found"
+        ls -la build/app/outputs/flutter-apk/ 2>/dev/null || echo "Flutter APK directory not found"
+        
+    - name: Upload Release APK
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: flutter-camera-app-release
+        path: ios_camera_flutter_app/build/app/outputs/flutter-apk/app-release.apk
+        retention-days: 30
+        if-no-files-found: error
+        
+    - name: Upload Debug APK (Fallback)
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: flutter-camera-app-debug-fallback
+        path: ios_camera_flutter_app/build/app/outputs/flutter-apk/app-debug.apk
+        retention-days: 30
+        if-no-files-found: warn

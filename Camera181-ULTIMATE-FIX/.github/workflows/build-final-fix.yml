@@ -1,0 +1,97 @@
+name: Build APK - FINAL EMBEDDING FIX
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-apk-final:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Java JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        
+    - name: Setup Flutter 3.19.6
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.19.6'
+        channel: 'stable'
+        cache: true
+        
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      
+    - name: FORCE EMBEDDING V2 FIX - Complete Android Recreation
+      run: |
+        echo "🚀 FINAL SOLUTION: Completely recreate Android with v2 embedding"
+        
+        cd ios_camera_flutter_app
+        echo "📋 Before fix - checking Android structure:"
+        ls -la android/app/src/main/ 2>/dev/null || echo "Android folder missing or broken"
+        
+        echo "🗑️ Removing entire old Android project..."
+        rm -rf android
+        
+        echo "🔧 Creating brand new Flutter project for Android structure..."
+        cd ..
+        flutter create --platforms android --org com.iosCamera embedding_v2_project
+        
+        echo "📂 Moving clean Android v2 structure to main project..."
+        cp -r embedding_v2_project/android ios_camera_flutter_app/
+        rm -rf embedding_v2_project
+        
+        echo "✅ New Android structure installed:"
+        cd ios_camera_flutter_app
+        find android -name "AndroidManifest.xml" -exec cat {} \;
+        
+        echo "🔧 Adding camera permissions to AndroidManifest.xml..."
+        sed -i '1a\    <!-- Camera permissions -->\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n    \n    <uses-feature android:name="android.hardware.camera" android:required="true" />\n    <uses-feature android:name="android.hardware.camera.autofocus" />' android/app/src/main/AndroidManifest.xml
+        
+        echo "📦 Updated app label in AndroidManifest.xml..."
+        sed -i 's/android:label="embedding_v2_project"/android:label="ios_camera_flutter_app"/g' android/app/src/main/AndroidManifest.xml
+        
+        echo "📋 Final AndroidManifest.xml content:"
+        cat android/app/src/main/AndroidManifest.xml
+        
+    - name: Build APK with Clean V2 Embedding
+      run: |
+        cd ios_camera_flutter_app
+        echo "🧹 Cleaning project..."
+        flutter clean
+        
+        echo "📦 Getting dependencies..."
+        flutter pub get
+        
+        echo "📄 Accepting Android licenses..."
+        yes | flutter doctor --android-licenses 2>/dev/null || echo "Licenses accepted"
+        
+        echo "🏗️ Building APK with embedding v2..."
+        flutter build apk --release --verbose
+        
+        echo "✅ APK build completed!"
+        ls -la build/app/outputs/flutter-apk/
+        
+    - name: Verify APK and Upload
+      run: |
+        cd ios_camera_flutter_app
+        echo "📱 APK Information:"
+        file build/app/outputs/flutter-apk/app-release.apk
+        ls -lh build/app/outputs/flutter-apk/app-release.apk
+        
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: camera-app-final-apk
+        path: ios_camera_flutter_app/build/app/outputs/flutter-apk/app-release.apk
+        retention-days: 30
+        if-no-files-found: error
