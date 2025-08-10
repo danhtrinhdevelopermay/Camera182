@@ -64,6 +64,50 @@ jobs:
         # Update build.gradle for our package
         sed -i 's/applicationId "com.example.temp_camera_app"/applicationId "com.example.ios_camera_flutter_app"/' ios_camera_flutter_app/android/app/build.gradle
         
+        # Ensure root build.gradle has proper Android plugin classpath
+        cat > ios_camera_flutter_app/android/build.gradle << 'EOF'
+        buildscript {
+            ext.kotlin_version = '1.7.10'
+            repositories {
+                google()
+                mavenCentral()
+            }
+
+            dependencies {
+                classpath 'com.android.tools.build:gradle:7.3.0'
+                classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+            }
+        }
+
+        allprojects {
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+
+        rootProject.buildDir = '../build'
+        subprojects {
+            project.buildDir = "${rootProject.buildDir}/${project.name}"
+        }
+        subprojects {
+            project.evaluationDependsOn(':app')
+        }
+
+        task clean(type: Delete) {
+            delete rootProject.buildDir
+        }
+        EOF
+        
+        # Update gradle wrapper properties for compatibility
+        cat > ios_camera_flutter_app/android/gradle/wrapper/gradle-wrapper.properties << 'EOF'
+        distributionBase=GRADLE_USER_HOME
+        distributionPath=wrapper/dists
+        zipStoreBase=GRADLE_USER_HOME
+        zipStorePath=wrapper/dists
+        distributionUrl=https\://services.gradle.org/distributions/gradle-7.5-all.zip
+        EOF
+        
         # Update AndroidManifest.xml
         cat > ios_camera_flutter_app/android/app/src/main/AndroidManifest.xml << 'EOF'
         <manifest xmlns:android="http://schemas.android.com/apk/res/android">
