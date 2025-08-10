@@ -1,0 +1,225 @@
+name: Build APK - Clean Start
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Java 11 
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '11'
+        
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.19.6'
+        channel: 'stable'
+        
+    - name: Clear Gradle Cache
+      run: |
+        rm -rf ~/.gradle/caches/
+        rm -rf ~/.gradle/wrapper/
+        
+    - name: Force Apply Complete Android Configuration
+      run: |
+        cd ios_camera_flutter_app
+        
+        echo "=== Completely Rebuilding Android Configuration ==="
+        
+        # Remove any existing build artifacts
+        rm -rf android/build
+        rm -rf android/.gradle
+        rm -rf android/app/build
+        rm -rf build
+        
+        # Ensure gradle wrapper is exactly as needed
+        mkdir -p android/gradle/wrapper
+        cat > android/gradle/wrapper/gradle-wrapper.properties << 'EOF'
+        distributionBase=GRADLE_USER_HOME
+        distributionPath=wrapper/dists
+        zipStoreBase=GRADLE_USER_HOME
+        zipStorePath=wrapper/dists
+        distributionUrl=https\://services.gradle.org/distributions/gradle-7.5-all.zip
+        EOF
+        
+        # Force correct root build.gradle with buildscript
+        cat > android/build.gradle << 'EOF'
+        buildscript {
+            ext.kotlin_version = '1.7.10'
+            repositories {
+                google()
+                mavenCentral()
+            }
+
+            dependencies {
+                classpath 'com.android.tools.build:gradle:7.3.0'
+                classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+            }
+        }
+
+        allprojects {
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+
+        rootProject.buildDir = '../build'
+        subprojects {
+            project.buildDir = "${rootProject.buildDir}/${project.name}"
+        }
+        subprojects {
+            project.evaluationDependsOn(':app')
+        }
+
+        task clean(type: Delete) {
+            delete rootProject.buildDir
+        }
+        EOF
+        
+        # Force correct app build.gradle
+        cat > android/app/build.gradle << 'EOF'
+        def localProperties = new Properties()
+        def localPropertiesFile = rootProject.file('local.properties')
+        if (localPropertiesFile.exists()) {
+            localPropertiesFile.withReader('UTF-8') { reader ->
+                localProperties.load(reader)
+            }
+        }
+
+        def flutterRoot = localProperties.getProperty('flutter.sdk')
+        if (flutterRoot == null) {
+            throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
+        }
+
+        def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+        if (flutterVersionCode == null) {
+            flutterVersionCode = '1'
+        }
+
+        def flutterVersionName = localProperties.getProperty('flutter.versionName')
+        if (flutterVersionName == null) {
+            flutterVersionName = '1.0'
+        }
+
+        apply plugin: 'com.android.application'
+        apply plugin: 'kotlin-android'
+        apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
+
+        android {
+            compileSdkVersion flutter.compileSdkVersion
+            ndkVersion flutter.ndkVersion
+
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_1_8
+                targetCompatibility JavaVersion.VERSION_1_8
+            }
+
+            kotlinOptions {
+                jvmTarget = '1.8'
+            }
+
+            sourceSets {
+                main.java.srcDirs += 'src/main/kotlin'
+            }
+
+            defaultConfig {
+                applicationId "com.example.ios_camera_flutter_app"
+                minSdkVersion flutter.minSdkVersion
+                targetSdkVersion flutter.targetSdkVersion
+                versionCode flutterVersionCode.toInteger()
+                versionName flutterVersionName
+            }
+
+            buildTypes {
+                release {
+                    signingConfig signingConfigs.debug
+                }
+            }
+        }
+
+        flutter {
+            source '../..'
+        }
+
+        dependencies {
+            implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+        }
+        EOF
+        
+        # Ensure MainActivity is correct
+        mkdir -p android/app/src/main/kotlin/com/example/ios_camera_flutter_app
+        cat > android/app/src/main/kotlin/com/example/ios_camera_flutter_app/MainActivity.kt << 'EOF'
+        package com.example.ios_camera_flutter_app
+
+        import io.flutter.embedding.android.FlutterActivity
+
+        class MainActivity : FlutterActivity()
+        EOF
+        
+        # Make gradlew executable
+        chmod +x android/gradlew
+        
+        echo "=== Verification of Configuration ==="
+        echo "Root build.gradle (buildscript section):"
+        head -12 android/build.gradle
+        echo ""
+        echo "App build.gradle (plugin section):"
+        sed -n '24,26p' android/app/build.gradle
+        echo ""
+        echo "MainActivity package:"
+        head -1 android/app/src/main/kotlin/com/example/ios_camera_flutter_app/MainActivity.kt
+        echo ""
+        echo "Gradle wrapper version:"
+        grep distributionUrl android/gradle/wrapper/gradle-wrapper.properties
+        
+    - name: Flutter Dependencies
+      run: |
+        cd ios_camera_flutter_app
+        flutter clean
+        flutter pub get
+        
+    - name: Build APK with Clean Configuration
+      run: |
+        cd ios_camera_flutter_app
+        echo "=== Building APK with Clean Configuration ==="
+        flutter build apk --release --verbose
+        
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: camera-app-clean-release
+        path: ios_camera_flutter_app/build/app/outputs/flutter-apk/app-release.apk
+        
+    - name: Final Build Status
+      if: always()
+      run: |
+        cd ios_camera_flutter_app
+        echo "=== Final Build Status ==="
+        if [ -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+          echo "✅ SUCCESS: APK Build Completed!"
+          echo "APK Path: $(pwd)/build/app/outputs/flutter-apk/app-release.apk"
+          echo "APK Size: $(du -h build/app/outputs/flutter-apk/app-release.apk | cut -f1)"
+          echo ""
+          echo "🚀 Camera App APK is ready for deployment!"
+        else
+          echo "❌ FAILED: APK Build unsuccessful"
+          echo "Build artifacts found:"
+          find build -name "*.apk" 2>/dev/null || echo "No APK files found"
+          echo ""
+          echo "Last few lines of gradle error:"
+          tail -10 android/app/build.gradle 2>/dev/null || echo "No build.gradle to check"
+        fi
