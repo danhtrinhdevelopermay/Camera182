@@ -1,1 +1,658 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giải Quyết Lỗi Build APK - Flutter GitHub Actions</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 0;
+            text-align: center;
+            margin-bottom: 30px;
+            border-radius: 10px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .error-section {
+            background: white;
+            padding: 30px;
+            margin-bottom: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-left: 5px solid #e74c3c;
+        }
+
+        .solution-section {
+            background: white;
+            padding: 30px;
+            margin-bottom: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-left: 5px solid #27ae60;
+        }
+
+        .code-block {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 15px 0;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .code-block pre {
+            margin: 0;
+        }
+
+        .step {
+            background: #f8f9fa;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+
+        .step h3 {
+            color: #007bff;
+            margin-bottom: 10px;
+        }
+
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+
+        .tab-container {
+            margin: 20px 0;
+        }
+
+        .tab-buttons {
+            display: flex;
+            background: #f1f3f4;
+            border-radius: 8px 8px 0 0;
+            overflow: hidden;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 15px;
+            background: #f1f3f4;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+
+        .tab-button.active {
+            background: #007bff;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+            background: white;
+            padding: 20px;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .file-tree {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            margin: 15px 0;
+        }
+
+        .highlight {
+            background: #fff3cd;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 50px;
+            padding: 20px;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .tab-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 Giải Quyết Lỗi Build APK</h1>
+            <p>Hướng dẫn chi tiết khắc phục lỗi "Plugin with id 'com.android.application' not found" trong GitHub Actions</p>
+        </div>
+
+        <div class="error-section">
+            <h2>🚨 Phân Tích Lỗi</h2>
+            <p>Từ log bạn cung cấp, lỗi chính xảy ra tại:</p>
+            <div class="code-block">
+                <pre>FAILURE: Build failed with an exception.
+Build file '/home/runner/work/Camera182/Camera182/ios_camera_flutter_app/android/app/build.gradle' line: 24
+A problem occurred evaluating project ':app'.
+> Plugin with id 'com.android.application' not found.</pre>
+            </div>
+            
+            <div class="warning">
+                <strong>Nguyên nhân:</strong> Thiếu Android Gradle Plugin trong file build.gradle ở cấp độ project. Plugin này cần thiết để build APK cho ứng dụng Flutter.
+            </div>
+        </div>
+
+        <div class="solution-section">
+            <h2>✅ Giải Pháp Chi Tiết</h2>
+            
+            <div class="tab-container">
+                <div class="tab-buttons">
+                    <button class="tab-button active" onclick="showTab('gradle-fix')">Sửa Build Gradle</button>
+                    <button class="tab-button" onclick="showTab('github-action')">Cập Nhật GitHub Action</button>
+                    <button class="tab-button" onclick="showTab('flutter-config')">Cấu Hình Flutter</button>
+                    <button class="tab-button" onclick="showTab('best-practices')">Best Practices</button>
+                </div>
+
+                <div id="gradle-fix" class="tab-content active">
+                    <h3>Bước 1: Kiểm tra và sửa file android/build.gradle</h3>
+                    <p>Đây là file cấu hình chính cho project Android. Hãy đảm bảo nội dung như sau:</p>
+                    
+                    <div class="code-block">
+                        <pre>allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.buildDir = '../build'
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(':app')
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}</pre>
+                    </div>
+
+                    <div class="step">
+                        <h3>Bước 2: Cập nhật android/app/build.gradle</h3>
+                        <p>Đảm bảo phần plugins được cấu hình đúng:</p>
+                        <div class="code-block">
+                            <pre>plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+if (flutterVersionCode == null) {
+    flutterVersionCode = '1'
+}
+
+def flutterVersionName = localProperties.getProperty('flutter.versionName')
+if (flutterVersionName == null) {
+    flutterVersionName = '1.0'
+}
+
+android {
+    namespace "com.example.ios_camera_flutter_app"
+    compileSdk flutter.compileSdkVersion
+    ndkVersion flutter.ndkVersion
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
+    defaultConfig {
+        applicationId "com.example.ios_camera_flutter_app"
+        minSdkVersion flutter.minSdkVersion
+        targetSdkVersion flutter.targetSdkVersion
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.debug
+        }
+    }
+}
+
+flutter {
+    source '../..'
+}
+
+dependencies {}</pre>
+                        </div>
+                    </div>
+
+                    <div class="step">
+                        <h3>Bước 3: Cập nhật android/settings.gradle</h3>
+                        <div class="code-block">
+                            <pre>pluginManagement {
+    def flutterSdkPath = {
+        def properties = new Properties()
+        file("local.properties").withInputStream { properties.load(it) }
+        def flutterSdkPath = properties.getProperty("flutter.sdk")
+        assert flutterSdkPath != null, "flutter.sdk not set in local.properties"
+        return flutterSdkPath
+    }
+    settings.ext.flutterSdkPath = flutterSdkPath()
+
+    includeBuild("${settings.ext.flutterSdkPath}/packages/flutter_tools/gradle")
+
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+
+    plugins {
+        id "dev.flutter.flutter-gradle-plugin" version "1.0.0" apply false
+    }
+}
+
+plugins {
+    id "dev.flutter.flutter-plugin-loader" version "1.0.0"
+    id "com.android.application" version "7.3.0" apply false
+    id "org.jetbrains.kotlin.android" version "1.7.10" apply false
+}
+
+include ":app"</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="github-action" class="tab-content">
+                    <h3>Cập Nhật GitHub Actions Workflow</h3>
+                    <p>Tạo hoặc cập nhật file <code>.github/workflows/build-apk.yml</code>:</p>
+                    
+                    <div class="code-block">
+                        <pre>name: Build and Release APK
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.19.6'
+        channel: 'stable'
+        
+    - name: Cache Flutter dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+          
+    - name: Navigate to Flutter app directory
+      run: cd ios_camera_flutter_app
+      
+    - name: Get Flutter dependencies
+      run: |
+        cd ios_camera_flutter_app
+        flutter pub get
+        
+    - name: Analyze Flutter code
+      run: |
+        cd ios_camera_flutter_app
+        flutter analyze
+        
+    - name: Run Flutter tests
+      run: |
+        cd ios_camera_flutter_app
+        flutter test
+        
+    - name: Build APK
+      run: |
+        cd ios_camera_flutter_app
+        flutter build apk --release --verbose
+        
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: release-apk
+        path: ios_camera_flutter_app/build/app/outputs/flutter-apk/app-release.apk</pre>
+                    </div>
+
+                    <div class="success">
+                        <strong>Lưu ý quan trọng:</strong> Đảm bảo tất cả lệnh đều chạy trong thư mục <code>ios_camera_flutter_app</code> vì đó là nơi chứa project Flutter của bạn.
+                    </div>
+                </div>
+
+                <div id="flutter-config" class="tab-content">
+                    <h3>Cấu Hình Flutter Chi Tiết</h3>
+                    
+                    <div class="step">
+                        <h3>1. Kiểm tra pubspec.yaml</h3>
+                        <p>Đảm bảo dependencies được cấu hình đúng:</p>
+                        <div class="code-block">
+                            <pre>name: ios_camera_flutter_app
+description: A Flutter camera application
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  camera: ^0.10.6
+  path_provider: ^2.1.4
+  permission_handler: ^10.4.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true</pre>
+                        </div>
+                    </div>
+
+                    <div class="step">
+                        <h3>2. Cấu hình quyền trong AndroidManifest.xml</h3>
+                        <p>File: <code>android/app/src/main/AndroidManifest.xml</code></p>
+                        <div class="code-block">
+                            <pre>&lt;manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.ios_camera_flutter_app"&gt;
+
+    &lt;uses-permission android:name="android.permission.CAMERA" /&gt;
+    &lt;uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" /&gt;
+    &lt;uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" /&gt;
+
+    &lt;application
+        android:label="Camera App"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"&gt;
+        
+        &lt;activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize"&gt;
+            
+            &lt;meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme" /&gt;
+              
+            &lt;intent-filter android:autoVerify="true"&gt;
+                &lt;action android:name="android.intent.action.MAIN"/&gt;
+                &lt;category android:name="android.intent.category.LAUNCHER"/&gt;
+            &lt;/intent-filter&gt;
+        &lt;/activity&gt;
+        
+        &lt;meta-data
+            android:name="flutterEmbedding"
+            android:value="2" /&gt;
+    &lt;/application&gt;
+&lt;/manifest&gt;</pre>
+                        </div>
+                    </div>
+
+                    <div class="step">
+                        <h3>3. Cấu trúc thư mục project</h3>
+                        <div class="file-tree">
+ios_camera_flutter_app/
+├── android/
+│   ├── app/
+│   │   ├── build.gradle <span class="highlight">← Cần sửa</span>
+│   │   └── src/main/AndroidManifest.xml
+│   ├── build.gradle <span class="highlight">← Cần sửa</span>
+│   └── settings.gradle <span class="highlight">← Cần sửa</span>
+├── lib/
+│   └── main.dart
+├── pubspec.yaml
+└── .github/
+    └── workflows/
+        └── build-apk.yml <span class="highlight">← Cần tạo</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="best-practices" class="tab-content">
+                    <h3>Best Practices & Tips</h3>
+                    
+                    <div class="step">
+                        <h3>1. Kiểm tra môi trường trước khi build</h3>
+                        <div class="code-block">
+                            <pre># Kiểm tra Flutter doctor
+flutter doctor -v
+
+# Kiểm tra phiên bản Gradle
+cd android && ./gradlew --version
+
+# Clean project trước khi build
+flutter clean
+flutter pub get</pre>
+                        </div>
+                    </div>
+
+                    <div class="step">
+                        <h3>2. Debug thường gặp</h3>
+                        <ul>
+                            <li><strong>Lỗi Gradle wrapper:</strong> Đảm bảo file <code>gradle-wrapper.properties</code> có phiên bản Gradle phù hợp</li>
+                            <li><strong>Lỗi Java version:</strong> Sử dụng Java 17 cho Flutter 3.19.6</li>
+                            <li><strong>Lỗi signing:</strong> Thêm signing config cho release build</li>
+                        </ul>
+                    </div>
+
+                    <div class="step">
+                        <h3>3. Tối ưu hóa GitHub Actions</h3>
+                        <div class="code-block">
+                            <pre># Thêm cache để tăng tốc build
+- name: Cache Flutter dependencies
+  uses: actions/cache@v3
+  with:
+    path: |
+      ~/.gradle/caches
+      ~/.gradle/wrapper
+      ~/.pub-cache
+    key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
+
+# Sử dụng parallel jobs cho test và build
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # ... test steps
+  
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    # ... build steps</pre>
+                        </div>
+                    </div>
+
+                    <div class="warning">
+                        <strong>Lưu ý bảo mật:</strong> Nếu cần ký APK với key store, hãy sử dụng GitHub Secrets để lưu trữ thông tin nhạy cảm.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="solution-section">
+            <h2>🔧 Các Bước Thực Hiện Ngay</h2>
+            <ol>
+                <li><strong>Backup project hiện tại</strong> trước khi thay đổi</li>
+                <li><strong>Cập nhật tất cả file Gradle</strong> theo hướng dẫn ở tab "Sửa Build Gradle"</li>
+                <li><strong>Tạo hoặc cập nhật GitHub Actions workflow</strong></li>
+                <li><strong>Test build local</strong> trước khi push:
+                    <div class="code-block">
+                        <pre>cd ios_camera_flutter_app
+flutter clean
+flutter pub get
+flutter build apk --release</pre>
+                    </div>
+                </li>
+                <li><strong>Push changes và kiểm tra GitHub Actions</strong></li>
+            </ol>
+        </div>
+
+        <div class="footer">
+            <p>Nếu vẫn gặp vấn đề, hãy kiểm tra lại cấu trúc thư mục và đảm bảo tất cả dependencies được cài đặt đúng.</p>
+            <p><strong>Good luck với project của bạn! 🚀</strong></p>
+        </div>
+    </div>
+
+    <script>
+        function showTab(tabId) {
+            // Hide all tab contents
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(content => {
+                content.classList.remove('active');
+            });
+
+            // Remove active class from all buttons
+            const tabButtons = document.querySelectorAll('.tab-button');
+            tabButtons.forEach(button => {
+                button.classList.remove('active');
+            });
+
+            // Show selected tab and activate button
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Add smooth scrolling
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+
+        // Add copy code functionality
+        document.querySelectorAll('.code-block').forEach(block => {
+            block.addEventListener('click', function() {
+                const text = this.textContent;
+                navigator.clipboard.writeText(text).then(() => {
+                    // Show temporary feedback
+                    const original = this.style.background;
+                    this.style.background = '#27ae60';
+                    setTimeout(() => {
+                        this.style.background = original;
+                    }, 200);
+                });
+            });
+            
+            // Add cursor pointer to indicate clickable
+            block.style.cursor = 'pointer';
+            block.title = 'Click để copy code';
+        });
+    </script>
+</body>
+</html>
