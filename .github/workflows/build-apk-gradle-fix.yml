@@ -1,0 +1,156 @@
+name: Build APK - Gradle Fix
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.19.6'
+        channel: 'stable'
+        
+    - name: Create fresh Android project structure
+      run: |
+        cd ios_camera_flutter_app
+        
+        echo "=== Creating Compatible Android Project ==="
+        
+        # Backup important files
+        mkdir -p ../backup
+        cp -r lib ../backup/
+        cp pubspec.yaml ../backup/
+        cp android/app/src/main/AndroidManifest.xml ../backup/ || true
+        
+        # Create fresh Android structure
+        echo "Creating fresh Flutter project for Android compatibility..."
+        cd ..
+        flutter create --org com.example --project-name temp_camera_app temp_project
+        
+        # Copy Gradle files from fresh project
+        cp -r temp_project/android/* ios_camera_flutter_app/android/
+        
+        # Restore our custom files
+        cp backup/lib/* ios_camera_flutter_app/lib/ || true
+        cp backup/pubspec.yaml ios_camera_flutter_app/
+        
+        # Update package in MainActivity
+        mkdir -p ios_camera_flutter_app/android/app/src/main/kotlin/com/example/ios_camera_flutter_app
+        cat > ios_camera_flutter_app/android/app/src/main/kotlin/com/example/ios_camera_flutter_app/MainActivity.kt << 'EOF'
+        package com.example.ios_camera_flutter_app
+        
+        import io.flutter.embedding.android.FlutterActivity
+        
+        class MainActivity : FlutterActivity()
+        EOF
+        
+        # Update build.gradle for our package
+        sed -i 's/applicationId "com.example.temp_camera_app"/applicationId "com.example.ios_camera_flutter_app"/' ios_camera_flutter_app/android/app/build.gradle
+        
+        # Update AndroidManifest.xml
+        cat > ios_camera_flutter_app/android/app/src/main/AndroidManifest.xml << 'EOF'
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <!-- Camera permissions -->
+            <uses-permission android:name="android.permission.CAMERA" />
+            <uses-permission android:name="android.permission.RECORD_AUDIO" />
+            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+            <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+            
+            <uses-feature android:name="android.hardware.camera" android:required="true" />
+            <uses-feature android:name="android.hardware.camera.autofocus" />
+            
+            <application
+                android:label="ios_camera_flutter_app"
+                android:name="${applicationName}"
+                android:icon="@mipmap/ic_launcher">
+                <activity
+                    android:name="com.example.ios_camera_flutter_app.MainActivity"
+                    android:exported="true"
+                    android:launchMode="singleTop"
+                    android:taskAffinity=""
+                    android:theme="@style/LaunchTheme"
+                    android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+                    android:hardwareAccelerated="true"
+                    android:windowSoftInputMode="adjustResize">
+                    <meta-data
+                      android:name="io.flutter.embedding.android.NormalTheme"
+                      android:resource="@style/NormalTheme"
+                      />
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN"/>
+                        <category android:name="android.intent.category.LAUNCHER"/>
+                    </intent-filter>
+                </activity>
+                <meta-data
+                    android:name="flutterEmbedding"
+                    android:value="2" />
+            </application>
+            <queries>
+                <intent>
+                    <action android:name="android.intent.action.PROCESS_TEXT"/>
+                    <data android:mimeType="text/plain"/>
+                </intent>
+            </queries>
+        </manifest>
+        EOF
+        
+        # Clean up
+        rm -rf temp_project backup
+        
+        echo "=== Project structure verification ==="
+        cd ios_camera_flutter_app
+        echo "--- MainActivity ---"
+        cat android/app/src/main/kotlin/com/example/ios_camera_flutter_app/MainActivity.kt
+        echo "--- build.gradle ---"
+        head -20 android/app/build.gradle
+        echo "--- AndroidManifest.xml ---"
+        head -10 android/app/src/main/AndroidManifest.xml
+        
+    - name: Flutter Clean and Dependencies
+      run: |
+        cd ios_camera_flutter_app
+        flutter clean
+        flutter pub get
+        
+    - name: Flutter Doctor
+      run: |
+        cd ios_camera_flutter_app  
+        flutter doctor -v
+        
+    - name: Build APK
+      run: |
+        cd ios_camera_flutter_app
+        echo "=== Building APK with compatible Gradle ==="
+        flutter build apk --release --verbose
+        
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: camera-app-release
+        path: ios_camera_flutter_app/build/app/outputs/flutter-apk/app-release.apk
+        
+    - name: Show Build Results
+      if: always()
+      run: |
+        cd ios_camera_flutter_app
+        echo "=== Build Results ==="
+        ls -la build/app/outputs/flutter-apk/ || echo "APK directory not found"
+        find build -name "*.apk" 2>/dev/null || echo "No APK files found"

@@ -27,11 +27,11 @@ jobs:
         flutter-version: '3.19.6'
         channel: 'stable'
         
-    - name: Fix Android Embedding v1 to v2
+    - name: Fix Android Gradle and Embedding Issues
       run: |
         cd ios_camera_flutter_app
         
-        echo "=== Fixing Android Embedding v1 to v2 ==="
+        echo "=== Fixing Android Gradle and Embedding Issues ==="
         
         # Remove old MainActivity structure 
         rm -rf android/app/src/main/kotlin/com/iosCamera
@@ -48,18 +48,148 @@ jobs:
         class MainActivity : FlutterActivity()
         EOF
         
-        # Update AndroidManifest.xml to use correct package
-        sed -i 's/android:name="\.MainActivity"/android:name="com.example.ios_camera_flutter_app.MainActivity"/g' android/app/src/main/AndroidManifest.xml
+        # Convert KTS files to standard Gradle files
+        echo "Converting Gradle KTS to standard Gradle..."
         
-        # Update build.gradle.kts for correct package
-        sed -i 's/namespace = "com\.iosCamera\.temp_android_project"/namespace = "com.example.ios_camera_flutter_app"/g' android/app/build.gradle.kts
-        sed -i 's/applicationId = "com\.iosCamera\.temp_android_project"/applicationId = "com.example.ios_camera_flutter_app"/g' android/app/build.gradle.kts
+        # Convert build.gradle.kts to build.gradle  
+        if [ -f "android/build.gradle.kts" ]; then
+          mv android/build.gradle.kts android/build.gradle
+        fi
+        
+        if [ -f "android/settings.gradle.kts" ]; then
+          mv android/settings.gradle.kts android/settings.gradle
+        fi
+        
+        if [ -f "android/app/build.gradle.kts" ]; then
+          mv android/app/build.gradle.kts android/app/build.gradle
+        fi
+        
+        # Create compatible build.gradle files
+        cat > android/build.gradle << 'EOF'
+        allprojects {
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        
+        rootProject.buildDir = '../build'
+        subprojects {
+            project.buildDir = "${rootProject.buildDir}/${project.name}"
+        }
+        subprojects {
+            project.evaluationDependsOn(':app')
+        }
+        
+        task clean(type: Delete) {
+            delete rootProject.buildDir
+        }
+        EOF
+        
+        cat > android/settings.gradle << 'EOF'
+        include ':app'
+        
+        def localPropertiesFile = new File(rootProject.projectDir, "local.properties")
+        def properties = new Properties()
+        
+        assert localPropertiesFile.exists()
+        localPropertiesFile.withReader("UTF-8") { reader -> properties.load(reader) }
+        
+        def flutterSdkPath = properties.getProperty("flutter.sdk")
+        assert flutterSdkPath != null, "flutter.sdk not set in local.properties"
+        apply from: "$flutterSdkPath/packages/flutter_tools/gradle/app_plugin_loader.gradle"
+        EOF
+        
+        cat > android/app/build.gradle << 'EOF'
+        def localProperties = new Properties()
+        def localPropertiesFile = rootProject.file('local.properties')
+        if (localPropertiesFile.exists()) {
+            localPropertiesFile.withReader('UTF-8') { reader ->
+                localProperties.load(reader)
+            }
+        }
+        
+        def flutterRoot = localProperties.getProperty('flutter.sdk')
+        if (flutterRoot == null) {
+            throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
+        }
+        
+        def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+        if (flutterVersionCode == null) {
+            flutterVersionCode = '1'
+        }
+        
+        def flutterVersionName = localProperties.getProperty('flutter.versionName')
+        if (flutterVersionName == null) {
+            flutterVersionName = '1.0'
+        }
+        
+        apply plugin: 'com.android.application'
+        apply plugin: 'kotlin-android'
+        apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
+        
+        android {
+            compileSdkVersion flutter.compileSdkVersion
+            ndkVersion flutter.ndkVersion
+        
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_1_8
+                targetCompatibility JavaVersion.VERSION_1_8
+            }
+        
+            kotlinOptions {
+                jvmTarget = '1.8'
+            }
+        
+            sourceSets {
+                main.java.srcDirs += 'src/main/kotlin'
+            }
+        
+            defaultConfig {
+                applicationId "com.example.ios_camera_flutter_app"
+                minSdkVersion flutter.minSdkVersion
+                targetSdkVersion flutter.targetSdkVersion
+                versionCode flutterVersionCode.toInteger()
+                versionName flutterVersionName
+            }
+        
+            buildTypes {
+                release {
+                    signingConfig signingConfigs.debug
+                }
+            }
+        }
+        
+        flutter {
+            source '../..'
+        }
+        
+        dependencies {
+            implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+        }
+        EOF
+        
+        # Update gradle.properties
+        cat > android/gradle.properties << 'EOF'
+        org.gradle.jvmargs=-Xmx1536M
+        android.useAndroidX=true
+        android.enableJetifier=true
+        kotlin_version=1.7.10
+        EOF
         
         echo "=== Package structure after fix ==="
         find android/app/src/main/kotlin -name "*.kt" -exec echo "File: {}" \; -exec cat {} \;
         
         echo "=== AndroidManifest.xml ==="
         cat android/app/src/main/AndroidManifest.xml
+        
+        echo "=== Gradle files ==="
+        echo "--- build.gradle ---"
+        cat android/build.gradle
+        echo "--- settings.gradle ---"
+        cat android/settings.gradle
+        echo "--- app/build.gradle ---"
+        cat android/app/build.gradle
         
     - name: Flutter Clean and Get Dependencies
       run: |

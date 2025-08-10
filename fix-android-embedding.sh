@@ -8,7 +8,7 @@ cd ios_camera_flutter_app
 echo "📋 Current project structure..."
 ls -la android/app/src/main/
 
-echo "🔧 Fixing Android Embedding Issues..."
+echo "🔧 Fixing Android Gradle and Embedding Issues..."
 
 # Remove old MainActivity structure 
 rm -rf android/app/src/main/kotlin/com/iosCamera
@@ -25,12 +25,11 @@ import io.flutter.embedding.android.FlutterActivity
 class MainActivity : FlutterActivity()
 EOF
 
-# Update AndroidManifest.xml to use correct package
-sed -i 's/android:name="\.MainActivity"/android:name="com.example.ios_camera_flutter_app.MainActivity"/g' android/app/src/main/AndroidManifest.xml
+# Remove KTS files and ensure Gradle files are used
+echo "🔄 Converting Gradle KTS to standard Gradle..."
+rm -f android/build.gradle.kts android/settings.gradle.kts android/app/build.gradle.kts
 
-# Update build.gradle.kts for correct package
-sed -i 's/namespace = "com\.iosCamera\.temp_android_project"/namespace = "com.example.ios_camera_flutter_app"/g' android/app/build.gradle.kts
-sed -i 's/applicationId = "com\.iosCamera\.temp_android_project"/applicationId = "com.example.ios_camera_flutter_app"/g' android/app/build.gradle.kts
+# Ensure proper Gradle files exist (they should already be created)
 
 echo "📋 Package structure after fix..."
 find android/app/src/main/kotlin -name "*.kt" -exec echo "File: {}" \; -exec cat {} \;
