@@ -1,0 +1,83 @@
+name: Build APK - Ready
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Java 11
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '11'
+        
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.19.6'
+        channel: 'stable'
+        
+    - name: Verify Android Configuration
+      run: |
+        cd ios_camera_flutter_app
+        echo "=== Verifying Android Configuration ==="
+        echo "--- Root build.gradle ---"
+        head -15 android/build.gradle
+        echo ""
+        echo "--- App build.gradle (lines 20-30) ---"
+        sed -n '20,30p' android/app/build.gradle
+        echo ""
+        echo "--- MainActivity ---"
+        cat android/app/src/main/kotlin/com/example/ios_camera_flutter_app/MainActivity.kt
+        echo ""
+        echo "--- AndroidManifest (package) ---"
+        grep -n "android:name.*MainActivity" android/app/src/main/AndroidManifest.xml
+        echo ""
+        echo "--- Gradle wrapper ---"
+        cat android/gradle/wrapper/gradle-wrapper.properties
+        
+    - name: Flutter Clean and Dependencies
+      run: |
+        cd ios_camera_flutter_app
+        flutter clean
+        flutter pub get
+        
+    - name: Build APK
+      run: |
+        cd ios_camera_flutter_app
+        echo "=== Building APK with Fixed Configuration ==="
+        flutter build apk --release --verbose
+        
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: camera-app-ready-release
+        path: ios_camera_flutter_app/build/app/outputs/flutter-apk/app-release.apk
+        
+    - name: Build Summary
+      if: always()
+      run: |
+        cd ios_camera_flutter_app
+        echo "=== Build Summary ==="
+        if [ -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+          echo "✅ APK Build SUCCESSFUL!"
+          echo "APK Location: $(pwd)/build/app/outputs/flutter-apk/app-release.apk"
+          echo "APK Size: $(du -h build/app/outputs/flutter-apk/app-release.apk | cut -f1)"
+          echo ""
+          echo "🎯 Ready for deployment! Camera app with full permissions and Android embedding v2."
+        else
+          echo "❌ APK Build Failed"
+          echo "Checking for any APK files:"
+          find build -name "*.apk" 2>/dev/null || echo "No APK files found"
+        fi
